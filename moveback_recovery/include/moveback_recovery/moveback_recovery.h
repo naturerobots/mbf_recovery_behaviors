@@ -30,11 +30,26 @@ public:
 
   virtual ~MoveBackRecovery() { };
 
+  enum class CostmapState{
+    FREE      =  0, // robot is completely in traversable space
+    INSCRIBED =  1, // robot is partially in inscribed space
+    LETHAL    =  2, // robot is partially in collision
+    UNKNOWN   =  3, // robot is partially in unknown space
+    OUTSIDE   =  4  // robot is completely outside the map
+  };
+
+  MoveBackRecovery::CostmapState checkPoseCost(
+      const geometry_msgs::PoseStamped& pose,
+      const float safety_dist,
+      const float lethal_cost_mult,
+      const float inscrib_cost_mult,
+      const float unknown_cost_mult,
+      int &total_cost) const;
+
+
 private:
-  geometry_msgs::Pose2D getCurrentRobotPose() const;
-  uint32_t moveBack() const;
+
   uint32_t publishStop() const;
-  double getCurrentDiff(const geometry_msgs::Pose2D referencePose) const;
 
   ros::NodeHandle nh_;
   costmap_2d::Costmap2DROS* local_costmap_;
@@ -43,10 +58,10 @@ private:
   bool initialized_;
   bool canceled_;
 
-  double controller_frequency_;
-  double linear_vel_back_;
   double step_back_length_;
-  double step_back_timeout_;
+  ros::Rate controller_frequency_;
+  ros::Duration step_back_timeout_;
+  geometry_msgs::Twist linear_vel_back_;
 };
 
 } // namespace moveback_recovery
