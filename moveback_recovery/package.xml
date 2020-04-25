@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="2">
     <name>moveback_recovery</name>
-    <version>0.0.0</version>
+    <version>0.1.0</version>
     <description>
         The Move Base Flex (MBF) recovery behavior moves the robot back for specified length.
         It also checks the costmap for a possible collision behind the robot while moving and
