@@ -1,7 +1,8 @@
 <library path="lib/libmoveback_recovery">
   <class name="moveback_recovery/MoveBackRecovery" type="moveback_recovery::MoveBackRecovery" base_class_type="mbf_costmap_core::CostmapRecovery">
     <description>
-      Moves the robot back
+      The Move Base Flex (MBF) recovery behavior moves the robot back for specified length.
+      It also checks the costmap for a possible collision behind the robot while moving and stops the robot if necessary.
     </description>
   </class>
 </library>

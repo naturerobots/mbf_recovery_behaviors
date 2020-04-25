@@ -1,3 +1,41 @@
+/*
+ *  Copyright 2020, Sebastian Pütz
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
+ *  are met:
+ *
+ *  1. Redistributions of source code must retain the above copyright
+ *     notice, this list of conditions and the following disclaimer.
+ *
+ *  2. Redistributions in binary form must reproduce the above
+ *     copyright notice, this list of conditions and the following
+ *     disclaimer in the documentation and/or other materials provided
+ *     with the distribution.
+ *
+ *  3. Neither the name of the copyright holder nor the names of its
+ *     contributors may be used to endorse or promote products derived
+ *     from this software without specific prior written permission.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ *  COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ *  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ *  POSSIBILITY OF SUCH DAMAGE.
+ *
+ *  abstract_planner.h
+ *
+ *  author: Sebastian Pütz <spuetz@uni-osnabrueck.de>
+ *
+ */
+
 #include <pluginlib/class_list_macros.h>
 #include <tf2/utils.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
@@ -31,7 +69,7 @@ void MoveBackRecovery::initialize(
   }
 
   ros::NodeHandle private_nh("~/" + name);
-  
+
   private_nh.param("control_frequency", control_frequency_, 20.0f);
   private_nh.param("linear_vel_back", linear_vel_back_, -0.3f);
   private_nh.param("step_back_length", step_back_length_, 1.0f);
@@ -98,7 +136,7 @@ uint32_t MoveBackRecovery::runBehavior(std::string &message)
     tf2::Matrix3x3 mat(quaternion);
     tf2::Vector3 back_direction = mat * tf2::Vector3(-look_behind_dist_, 0, 0);
 
-
+    // check for possible collision
     tf2::Stamped<tf2::Vector3> back_point(
         robot_position + back_direction,
         ros::Time::now(),
@@ -129,11 +167,13 @@ uint32_t MoveBackRecovery::runBehavior(std::string &message)
       return mbf_msgs::RecoveryResult::FAILURE;
     }
 
+    // if enabled, publish the back point where the footprint collision check is done
     if(publish_back_point_) {
       geometry_msgs::PointStamped back_point_msg;
       tf2::toMsg(back_point, back_point_msg);
       back_pos_pub_.publish(back_point_msg);
     }
+
     // check if the robot moved back the specified distance
     if(step_back_length_ < dist)
     {

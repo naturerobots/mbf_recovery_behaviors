@@ -3,12 +3,15 @@
     <name>moveback_recovery</name>
     <version>0.0.0</version>
     <description>
-        This package provides a simple recovery behavior for Move Base Flex which moves back a specified length
+        The Move Base Flex (MBF) recovery behavior moves the robot back for specified length.
+        It also checks the costmap for a possible collision behind the robot while moving and
+        stops the robot if necessary.
     </description>
     <maintainer email="spuetz@uos.de">Sebastian Pütz</maintainer>
+    <author email="spuetz@uos.de">Sebastian Pütz</author>
     <author email="fistutzenste@uos.de">Finn Stutzenstein</author>
 
-    <license>3-Clause BSD</license>
+    <license>BSD-3</license>
 
     <buildtool_depend>catkin</buildtool_depend>
 
@@ -17,16 +20,12 @@
     <build_depend>costmap_2d</build_depend>
     <build_depend>pluginlib</build_depend>
     <build_depend>mbf_msgs</build_depend>
-    <build_depend>mbf_costmap_core</build_depend>
-    
-
 
     <exec_depend>roscpp</exec_depend>
     <exec_depend>tf2_ros</exec_depend>
     <exec_depend>costmap_2d</exec_depend>
     <exec_depend>pluginlib</exec_depend>
     <exec_depend>mbf_msgs</exec_depend>
-    <exec_depend>mbf_costmap_core</exec_depend>
 
     <export>
         <mbf_costmap_core plugin="${prefix}/moveback_recovery_plugin.xml" />
