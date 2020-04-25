@@ -11,7 +11,7 @@ namespace moveback_recovery
 {
 
 /// Recovery behavior that takes a given twist and tries to execute it for up to
-/// d seconds, or until reaching an obstacle.  
+/// d seconds, or until reaching an obstacle.
 class MoveBackRecovery : public mbf_costmap_core::CostmapRecovery
 {
 public:
@@ -61,10 +61,17 @@ private:
   bool initialized_;
   bool canceled_;
 
-  double step_back_length_;
-  double control_frequency_;
-  double step_back_timeout_;
-  double linear_vel_back_;
+  float step_back_length_;
+  float control_frequency_;
+  float step_back_timeout_;
+  float linear_vel_back_;
+
+  float footprint_inflation_;
+  float look_behind_dist_;
+
+  float lethal_cost_mul_;
+  float inscribe_cost_mul_;
+  float unknown_cost_mul_;
 };
 
 } // namespace moveback_recovery

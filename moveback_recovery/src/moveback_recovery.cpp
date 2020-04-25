@@ -28,10 +28,17 @@ void MoveBackRecovery::initialize(
   ros::NodeHandle private_nh("~/" + name);
   back_pos_pub_ = private_nh.advertise<geometry_msgs::PointStamped>("back_pos", 1);
 
-  private_nh.param("control_frequency", control_frequency_, 20.0);
-  private_nh.param("linear_vel_back", linear_vel_back_, -0.3);
-  private_nh.param("step_back_length", step_back_length_, 1.0);
-  private_nh.param("step_back_timeout", step_back_timeout_, 15.0);
+  private_nh.param("control_frequency", control_frequency_, 20.0f);
+  private_nh.param("linear_vel_back", linear_vel_back_, -0.3f);
+  private_nh.param("step_back_length", step_back_length_, 1.0f);
+  private_nh.param("step_back_timeout", step_back_timeout_, 15.0f);
+
+  private_nh.param("footprint_inflation", footprint_inflation_, 0.0f);
+  private_nh.param("look_behind_dist", look_behind_dist_, 0.1f);
+
+  lethal_cost_mul_ = 0;
+  inscribe_cost_mul_ = 0;
+  unknown_cost_mul_ = 0;
 
   initialized_ = true;
 }
@@ -83,8 +90,7 @@ uint32_t MoveBackRecovery::runBehavior(std::string &message)
     tf2::Quaternion quaternion;
     tf2::fromMsg(robot_pose.pose.orientation, quaternion);
     tf2::Matrix3x3 mat(quaternion);
-    double look_behind_distance = 0.1;
-    tf2::Vector3 back_direction = mat * tf2::Vector3(-look_behind_distance, 0, 0);
+    tf2::Vector3 back_direction = mat * tf2::Vector3(-look_behind_dist_, 0, 0);
 
 
     tf2::Stamped<tf2::Vector3> back_point(
@@ -101,16 +107,11 @@ uint32_t MoveBackRecovery::runBehavior(std::string &message)
     geometry_msgs::PoseStamped look_behind_pose;
     tf2::toMsg(stamped_transform, look_behind_pose);
 
-    float safety_dist = 0;
-    float lethal_cost_mul = 0;
-    float inscribe_cost_mul = 0;
-    float unknown_cost_mul = 0;
     int cost = 0;
-
     CostmapState cm_state = checkPoseCost(
         local_costmap_, look_behind_pose,
-        safety_dist, lethal_cost_mul,
-        inscribe_cost_mul, unknown_cost_mul,
+        footprint_inflation_, lethal_cost_mul_,
+        inscribe_cost_mul_, unknown_cost_mul_,
         cost);
 
     if(cm_state == CostmapState::LETHAL)
@@ -238,7 +239,6 @@ uint32_t MoveBackRecovery::publishStop() const
   zero_vel.angular.x = zero_vel.angular.y = zero_vel.angular.z = 0;
   cmd_vel_pub_.publish(zero_vel);
 }
-
 
 bool MoveBackRecovery::cancel() {
   canceled_ = true;
