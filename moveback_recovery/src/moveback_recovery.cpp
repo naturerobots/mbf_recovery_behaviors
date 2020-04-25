@@ -25,9 +25,13 @@ void MoveBackRecovery::initialize(
 
   cmd_vel_pub_ = nh_.advertise<geometry_msgs::Twist>("cmd_vel", 1);
 
-  ros::NodeHandle private_nh("~/" + name);
-  back_pos_pub_ = private_nh.advertise<geometry_msgs::PointStamped>("back_pos", 1);
+  if(publish_back_point_)
+  {
+    back_pos_pub_ = nh_.advertise<geometry_msgs::PointStamped>("back_point", 1);
+  }
 
+  ros::NodeHandle private_nh("~/" + name);
+  
   private_nh.param("control_frequency", control_frequency_, 20.0f);
   private_nh.param("linear_vel_back", linear_vel_back_, -0.3f);
   private_nh.param("step_back_length", step_back_length_, 1.0f);
@@ -35,6 +39,8 @@ void MoveBackRecovery::initialize(
 
   private_nh.param("footprint_inflation", footprint_inflation_, 0.0f);
   private_nh.param("look_behind_dist", look_behind_dist_, 0.1f);
+
+  private_nh.param("publish_back_point", publish_back_point_, false);
 
   lethal_cost_mul_ = 0;
   inscribe_cost_mul_ = 0;
@@ -123,11 +129,11 @@ uint32_t MoveBackRecovery::runBehavior(std::string &message)
       return mbf_msgs::RecoveryResult::FAILURE;
     }
 
-    geometry_msgs::PointStamped back_point_msg;
-    tf2::toMsg(back_point, back_point_msg);
-
-    back_pos_pub_.publish(back_point_msg);
-
+    if(publish_back_point_) {
+      geometry_msgs::PointStamped back_point_msg;
+      tf2::toMsg(back_point, back_point_msg);
+      back_pos_pub_.publish(back_point_msg);
+    }
     // check if the robot moved back the specified distance
     if(step_back_length_ < dist)
     {

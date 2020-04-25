@@ -69,6 +69,8 @@ private:
   float footprint_inflation_;
   float look_behind_dist_;
 
+  bool publish_back_point_;
+
   float lethal_cost_mul_;
   float inscribe_cost_mul_;
   float unknown_cost_mul_;
