@@ -12,58 +12,64 @@ PLUGINLIB_EXPORT_CLASS(moveback_recovery::MoveBackRecovery, mbf_costmap_core::Co
 namespace moveback_recovery
 {
 
+MoveBackRecovery::MoveBackRecovery(){}
+
+MoveBackRecovery::~MoveBackRecovery(){}
+
 void MoveBackRecovery::initialize(
     std::string name, tf2_ros::Buffer* tf,
-    costmap_2d::Costmap2DROS* /*global_costmap*/, costmap_2d::Costmap2DROS* local_costmap)
+    costmap_2d::Costmap2DROS* global_costmap, costmap_2d::Costmap2DROS* local_costmap)
 {
   tf_ = tf;
   local_costmap_ = local_costmap;
 
   cmd_vel_pub_ = nh_.advertise<geometry_msgs::Twist>("cmd_vel", 1);
+
   ros::NodeHandle private_nh("~/" + name);
+  back_pos_pub_ = private_nh.advertise<geometry_msgs::PointStamped>("back_pos", 1);
 
-  double controller_frequency;
-  private_nh.param("controller_frequency", controller_frequency, 20.0);
-  controller_frequency_ = ros::Rate(controller_frequency);
-
-  double linear_vel_back;
-  private_nh.param("linear_vel_back", linear_vel_back, -0.3);
-  linear_vel_back_.linear.x = linear_vel_back;
-
+  private_nh.param("control_frequency", control_frequency_, 20.0);
+  private_nh.param("linear_vel_back", linear_vel_back_, -0.3);
   private_nh.param("step_back_length", step_back_length_, 1.0);
-
-  double step_back_timeout;
-  private_nh.param("step_back_timeout", step_back_timeout, 15.0);
-  step_back_timeout_ = ros::Duration(step_back_timeout);
+  private_nh.param("step_back_timeout", step_back_timeout_, 15.0);
 
   initialized_ = true;
 }
 
 uint32_t MoveBackRecovery::runBehavior(std::string &message)
 {
+  canceled_ = false;
   geometry_msgs::PoseStamped initial_pose;
   local_costmap_->getRobotPose(initial_pose);
   tf2::Vector3 initial_position;
   tf2::fromMsg(initial_pose.pose.position, initial_position);
 
+  ros::Rate rate(control_frequency_);
+
+  geometry_msgs::Twist vel_msg;
+  vel_msg.linear.x = linear_vel_back_;
+
+  ros::Duration timeout(step_back_timeout_);
   ros::Time time_begin = ros::Time::now();
+
   while (ros::ok())
   {
 
-    // time out
-    if(!step_back_timeout_.isZero() &&
-        time_begin + step_back_timeout_ < ros::Time::now())
+    // check for timeout
+    if(!timeout.isZero() && time_begin + timeout < ros::Time::now())
     {
       publishStop();
       message = "Time out, moving backwards";
       ROS_INFO_STREAM(message);
-      ROS_INFO("%.2f [sec] elapsed.", step_back_timeout_.toSec());
+      ROS_INFO("%.2f [sec] elapsed.", timeout.toSec());
       return mbf_msgs::RecoveryResult::PAT_EXCEEDED;
     }
 
+    // check for cancel request
     if(canceled_) {
       message = "Cancel has been requested, stopping robot.";
       ROS_INFO_STREAM(message);
+      // stop the robot
       publishStop();
       return mbf_msgs::RecoveryResult::CANCELED;
     }
@@ -76,24 +82,71 @@ uint32_t MoveBackRecovery::runBehavior(std::string &message)
 
     tf2::Quaternion quaternion;
     tf2::fromMsg(robot_pose.pose.orientation, quaternion);
-    tf2::Vector3 vec = quaternion.getAxis();
+    tf2::Matrix3x3 mat(quaternion);
+    double look_behind_distance = 0.1;
+    tf2::Vector3 back_direction = mat * tf2::Vector3(-look_behind_distance, 0, 0);
 
 
-    if(dist < 0.01)
+    tf2::Stamped<tf2::Vector3> back_point(
+        robot_position + back_direction,
+        ros::Time::now(),
+        local_costmap_->getGlobalFrameID());
+
+    tf2::Transform transform(quaternion, back_point);
+    tf2::Stamped<tf2::Transform> stamped_transform(
+        transform,
+        ros::Time::now(),
+        local_costmap_->getGlobalFrameID());
+
+    geometry_msgs::PoseStamped look_behind_pose;
+    tf2::toMsg(stamped_transform, look_behind_pose);
+
+    float safety_dist = 0;
+    float lethal_cost_mul = 0;
+    float inscribe_cost_mul = 0;
+    float unknown_cost_mul = 0;
+    int cost = 0;
+
+    CostmapState cm_state = checkPoseCost(
+        local_costmap_, look_behind_pose,
+        safety_dist, lethal_cost_mul,
+        inscribe_cost_mul, unknown_cost_mul,
+        cost);
+
+    if(cm_state == CostmapState::LETHAL)
+    {
+      message = "Stop moving backwards, since an obstacle behind the robot was detected";
+      ROS_INFO_STREAM(message);
+      // stop the robot
+      publishStop();
+      return mbf_msgs::RecoveryResult::FAILURE;
+    }
+
+    geometry_msgs::PointStamped back_point_msg;
+    tf2::toMsg(back_point, back_point_msg);
+
+    back_pos_pub_.publish(back_point_msg);
+
+    // check if the robot moved back the specified distance
+    if(step_back_length_ < dist)
     {
       message = "Successfully moved backwards.";
       ROS_INFO_STREAM(message);
+      // stop the robot
+      publishStop();
       return mbf_msgs::RecoveryResult::SUCCESS;
     }
 
-    cmd_vel_pub_.publish(linear_vel_back_);
-    controller_frequency_.sleep();
+    cmd_vel_pub_.publish(vel_msg);
+    rate.sleep();
   }
+  // stop the robot
   publishStop();
   return mbf_msgs::RecoveryResult::STOPPED;
 }
 
 MoveBackRecovery::CostmapState MoveBackRecovery::checkPoseCost(
+  costmap_2d::Costmap2DROS* costmap_ptr,
   const geometry_msgs::PoseStamped& pose,
   const float safety_dist,
   const float lethal_cost_mult,
@@ -106,13 +159,13 @@ MoveBackRecovery::CostmapState MoveBackRecovery::checkPoseCost(
   double yaw = tf2::getYaw(pose.pose.orientation);
 
   // pad raw footprint to the requested safety distance; note that we discard footprint_padding parameter effect
-  std::vector<geometry_msgs::Point> footprint = local_costmap_->getUnpaddedRobotFootprint();
+  std::vector<geometry_msgs::Point> footprint = costmap_ptr->getUnpaddedRobotFootprint();
   costmap_2d::padFootprint(footprint, safety_dist);
 
   // use a footprint helper instance to get all the cells totally or partially within footprint polygon
   base_local_planner::FootprintHelper fph;
   std::vector<base_local_planner::Position2DInt> footprint_cells =
-      fph.getFootprintCells(Eigen::Vector3f(x, y, yaw), footprint, *local_costmap_->getCostmap(), true);
+      fph.getFootprintCells(Eigen::Vector3f(x, y, yaw), footprint, *costmap_ptr->getCostmap(), true);
 
 
   CostmapState state = CostmapState::FREE;
@@ -124,12 +177,12 @@ MoveBackRecovery::CostmapState MoveBackRecovery::checkPoseCost(
   else
   {
     // lock costmap so content doesn't change while adding cell costs
-    boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(local_costmap_->getCostmap()->getMutex()));
+    boost::unique_lock<costmap_2d::Costmap2D::mutex_t> lock(*(costmap_ptr->getCostmap()->getMutex()));
 
     // integrate the cost of all cells; state value precedence is UNKNOWN > LETHAL > INSCRIBED > FREE
     for (int i = 0; i < footprint_cells.size(); ++i)
     {
-      unsigned char cost = local_costmap_->getCostmap()->getCost(footprint_cells[i].x, footprint_cells[i].y);
+      unsigned char cost = costmap_ptr->getCostmap()->getCost(footprint_cells[i].x, footprint_cells[i].y);
       switch (cost)
       {
       case costmap_2d::NO_INFORMATION:

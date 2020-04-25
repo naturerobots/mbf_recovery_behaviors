@@ -18,6 +18,8 @@ public:
 
   MoveBackRecovery();
 
+  virtual ~MoveBackRecovery();
+
   /// Initialize the parameters of the behavior
   virtual void initialize (std::string name, tf2_ros::Buffer* tf,
                            costmap_2d::Costmap2DROS* global_costmap,
@@ -28,8 +30,6 @@ public:
 
   virtual bool cancel();
 
-  virtual ~MoveBackRecovery() { };
-
   enum class CostmapState{
     FREE      =  0, // robot is completely in traversable space
     INSCRIBED =  1, // robot is partially in inscribed space
@@ -39,6 +39,7 @@ public:
   };
 
   MoveBackRecovery::CostmapState checkPoseCost(
+      costmap_2d::Costmap2DROS* costmap_ptr,
       const geometry_msgs::PoseStamped& pose,
       const float safety_dist,
       const float lethal_cost_mult,
@@ -53,15 +54,17 @@ private:
 
   ros::NodeHandle nh_;
   costmap_2d::Costmap2DROS* local_costmap_;
+  costmap_2d::Costmap2DROS* global_costmap_;
   tf2_ros::Buffer* tf_;
   ros::Publisher cmd_vel_pub_;
+  ros::Publisher back_pos_pub_;
   bool initialized_;
   bool canceled_;
 
   double step_back_length_;
-  ros::Rate controller_frequency_;
-  ros::Duration step_back_timeout_;
-  geometry_msgs::Twist linear_vel_back_;
+  double control_frequency_;
+  double step_back_timeout_;
+  double linear_vel_back_;
 };
 
 } // namespace moveback_recovery
