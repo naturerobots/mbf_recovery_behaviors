@@ -2,10 +2,13 @@ cmake_minimum_required(VERSION 2.8.3)
 project(moveback_recovery)
 
 find_package(catkin REQUIRED COMPONENTS
+  base_local_planner
   costmap_2d
+  mbf_costmap_core
   mbf_msgs
   pluginlib
   roscpp
+  tf2_geometry_msgs
   tf2_ros
 )
 
@@ -16,7 +19,7 @@ include_directories(
 
 catkin_package(
   LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS costmap_2d mbf_msgs pluginlib roscpp tf2_ros
+  CATKIN_DEPENDS base_local_planner costmap_2d mbf_costmap_core mbf_msgs pluginlib roscpp tf2_geometry_msgs tf2_ros
 )
 
 add_library(${PROJECT_NAME} src/moveback_recovery.cpp)

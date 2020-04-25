@@ -15,18 +15,23 @@
 
     <buildtool_depend>catkin</buildtool_depend>
 
-    <build_depend>roscpp</build_depend>
-    <build_depend>tf2_ros</build_depend>
+    <build_depend>base_local_planner</build_depend>
     <build_depend>costmap_2d</build_depend>
-    <build_depend>pluginlib</build_depend>
+    <build_depend>mbf_costmap_core</build_depend>
     <build_depend>mbf_msgs</build_depend>
+    <build_depend>pluginlib</build_depend>
+    <build_depend>roscpp</build_depend>
+    <build_depend>tf2_geometry_msgs</build_depend>
+    <build_depend>tf2_ros</build_depend>
 
-    <exec_depend>roscpp</exec_depend>
-    <exec_depend>tf2_ros</exec_depend>
+    <exec_depend>base_local_planner</exec_depend>
     <exec_depend>costmap_2d</exec_depend>
-    <exec_depend>pluginlib</exec_depend>
+    <exec_depend>mbf_costmap_core</exec_depend>
     <exec_depend>mbf_msgs</exec_depend>
-
+    <exec_depend>pluginlib</exec_depend>
+    <exec_depend>roscpp</exec_depend>
+    <exec_depend>tf2_geometry_msgs</exec_depend>
+    <exec_depend>tf2_ros</exec_depend>
     <export>
         <mbf_costmap_core plugin="${prefix}/moveback_recovery_plugin.xml" />
     </export>
