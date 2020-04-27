@@ -72,6 +72,9 @@ void MoveBackRecovery::initialize(
 
   private_nh.param("control_frequency", control_frequency_, 20.0f);
   private_nh.param("linear_vel_back", linear_vel_back_, -0.3f);
+  // force the linear velocity to be negative, since the robot should drive backwards.
+  if(linear_vel_back_ > 0) linear_vel_back_ = -linear_vel_back_;
+
   private_nh.param("step_back_length", step_back_length_, 1.0f);
   private_nh.param("step_back_timeout", step_back_timeout_, 15.0f);
 
