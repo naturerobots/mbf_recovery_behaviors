@@ -56,7 +56,7 @@ public:
 
   virtual ~MoveBackRecovery();
 
-  virtual void initialize (std::string name, tf2_ros::Buffer* tf,
+  virtual void initialize (std::string name, TF* tf,
                            costmap_2d::Costmap2DROS* global_costmap,
                            costmap_2d::Costmap2DROS* local_costmap);
 
@@ -64,7 +64,7 @@ public:
 
   virtual bool cancel();
 
-  enum class CostmapState{
+  enum CostmapState{
     FREE      =  0, // robot is completely in traversable space
     INSCRIBED =  1, // robot is partially in inscribed space
     LETHAL    =  2, // robot is partially in collision
@@ -89,7 +89,7 @@ private:
   ros::NodeHandle nh_;
   costmap_2d::Costmap2DROS* local_costmap_;
   costmap_2d::Costmap2DROS* global_costmap_;
-  tf2_ros::Buffer* tf_;
+  TF* tf_;
   ros::Publisher cmd_vel_pub_;
   ros::Publisher back_pos_pub_;
   bool initialized_;

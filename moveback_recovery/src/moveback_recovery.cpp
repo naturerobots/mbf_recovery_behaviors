@@ -43,6 +43,7 @@
 #include <mbf_msgs/RecoveryResult.h>
 #include <base_local_planner/footprint_helper.h>
 #include <tf2/LinearMath/Quaternion.h>
+#include <tf/transform_datatypes.h>
 
 // register as a RecoveryBehavior plugin
 PLUGINLIB_EXPORT_CLASS(moveback_recovery::MoveBackRecovery, mbf_costmap_core::CostmapRecovery)
@@ -55,7 +56,7 @@ MoveBackRecovery::MoveBackRecovery(){}
 MoveBackRecovery::~MoveBackRecovery(){}
 
 void MoveBackRecovery::initialize(
-    std::string name, tf2_ros::Buffer* tf,
+    std::string name, TF* tf,
     costmap_2d::Costmap2DROS* global_costmap, costmap_2d::Costmap2DROS* local_costmap)
 {
   tf_ = tf;
@@ -93,10 +94,9 @@ void MoveBackRecovery::initialize(
 uint32_t MoveBackRecovery::runBehavior(std::string &message)
 {
   canceled_ = false;
-  geometry_msgs::PoseStamped initial_pose;
+  tf::Stamped<tf::Pose> initial_pose;
   local_costmap_->getRobotPose(initial_pose);
-  tf2::Vector3 initial_position;
-  tf2::fromMsg(initial_pose.pose.position, initial_position);
+  tf::Vector3 initial_position = initial_pose.getOrigin();
 
   ros::Rate rate(control_frequency_);
 
@@ -128,31 +128,29 @@ uint32_t MoveBackRecovery::runBehavior(std::string &message)
       return mbf_msgs::RecoveryResult::CANCELED;
     }
 
-    geometry_msgs::PoseStamped robot_pose;
+    tf::Stamped<tf::Pose> robot_pose;
     local_costmap_->getRobotPose(robot_pose);
-    tf2::Vector3 robot_position;
-    tf2::fromMsg(robot_pose.pose.position, robot_position);
+    tf::Vector3 robot_position = robot_pose.getOrigin();
     double dist = (robot_position - initial_position).length();
 
-    tf2::Quaternion quaternion;
-    tf2::fromMsg(robot_pose.pose.orientation, quaternion);
-    tf2::Matrix3x3 mat(quaternion);
-    tf2::Vector3 back_direction = mat * tf2::Vector3(-look_behind_dist_, 0, 0);
+    tf::Quaternion quaternion = robot_pose.getRotation();
+    tf::Matrix3x3 mat(quaternion);
+    tf::Vector3 back_direction = mat * tf::Vector3(-look_behind_dist_, 0, 0);
 
     // check for possible collision
-    tf2::Stamped<tf2::Vector3> back_point(
+    tf::Stamped<tf::Vector3> back_point(
         robot_position + back_direction,
         ros::Time::now(),
         local_costmap_->getGlobalFrameID());
 
-    tf2::Transform transform(quaternion, back_point);
-    tf2::Stamped<tf2::Transform> stamped_transform(
+    tf::Transform transform(quaternion, back_point);
+    tf::Stamped<tf::Pose> stamped_transform(
         transform,
         ros::Time::now(),
         local_costmap_->getGlobalFrameID());
 
     geometry_msgs::PoseStamped look_behind_pose;
-    tf2::toMsg(stamped_transform, look_behind_pose);
+    tf::poseStampedTFToMsg(stamped_transform, look_behind_pose);
 
     int cost = 0;
     CostmapState cm_state = checkPoseCost(
@@ -161,7 +159,7 @@ uint32_t MoveBackRecovery::runBehavior(std::string &message)
         inscribe_cost_mul_, unknown_cost_mul_,
         cost);
 
-    if(cm_state == CostmapState::LETHAL)
+    if(cm_state == LETHAL)
     {
       message = "Stop moving backwards, since an obstacle behind the robot was detected";
       ROS_INFO_STREAM(message);
@@ -173,7 +171,7 @@ uint32_t MoveBackRecovery::runBehavior(std::string &message)
     // if enabled, publish the back point where the footprint collision check is done
     if(publish_back_point_) {
       geometry_msgs::PointStamped back_point_msg;
-      tf2::toMsg(back_point, back_point_msg);
+      tf::pointStampedTFToMsg(back_point, back_point_msg);
       back_pos_pub_.publish(back_point_msg);
     }
 
@@ -218,11 +216,11 @@ MoveBackRecovery::CostmapState MoveBackRecovery::checkPoseCost(
       fph.getFootprintCells(Eigen::Vector3f(x, y, yaw), footprint, *costmap_ptr->getCostmap(), true);
 
 
-  CostmapState state = CostmapState::FREE;
+  CostmapState state = FREE;
   if (footprint_cells.empty())
   {
     // no cells within footprint polygon must mean that robot is completely outside of the map
-    state = std::max(state, CostmapState::OUTSIDE);
+    state = std::max(state, OUTSIDE);
   }
   else
   {
@@ -236,15 +234,15 @@ MoveBackRecovery::CostmapState MoveBackRecovery::checkPoseCost(
       switch (cost)
       {
       case costmap_2d::NO_INFORMATION:
-        state = std::max(state, CostmapState::UNKNOWN);
+        state = std::max(state, UNKNOWN);
         total_cost += cost * (unknown_cost_mult ? unknown_cost_mult : 1.0);
         break;
       case costmap_2d::LETHAL_OBSTACLE:
-        state = std::max(state, CostmapState::LETHAL);
+        state = std::max(state, LETHAL);
         total_cost += cost * (lethal_cost_mult ? lethal_cost_mult : 1.0);
         break;
       case costmap_2d::INSCRIBED_INFLATED_OBSTACLE:
-        state = std::max(state, CostmapState::INSCRIBED);
+        state = std::max(state, INSCRIBED);
         total_cost += cost * (inscrib_cost_mult ? inscrib_cost_mult : 1.0);
         break;
       default:
@@ -257,23 +255,23 @@ MoveBackRecovery::CostmapState MoveBackRecovery::checkPoseCost(
   // Provide some details of the outcome
   switch (state)
   {
-  case CostmapState::OUTSIDE:
+  case OUTSIDE:
     ROS_DEBUG_STREAM("Pose [" << x << ", " << y << ", " << yaw << "] is outside the map (cost = " << total_cost
                               << "; safety distance = " << safety_dist << ")");
     break;
-  case CostmapState::UNKNOWN:
+  case UNKNOWN:
     ROS_DEBUG_STREAM("Pose [" << x << ", " << y << ", " << yaw << "] is in unknown space! (cost = " << total_cost
                               << "; safety distance = " << safety_dist << ")");
     break;
-  case CostmapState::LETHAL:
+  case LETHAL:
     ROS_DEBUG_STREAM("Pose [" << x << ", " << y << ", " << yaw << "] is in collision! (cost = " << total_cost
                               << "; safety distance = " << safety_dist << ")");
     break;
-  case CostmapState::INSCRIBED:
+  case INSCRIBED:
     ROS_DEBUG_STREAM("Pose [" << x << ", " << y << ", " << yaw << "] is near an obstacle (cost = " << total_cost
                               << "; safety distance = " << safety_dist << ")");
     break;
-  case CostmapState::FREE:
+  case FREE:
     ROS_DEBUG_STREAM("Pose [" << x << ", " << y << ", " << yaw << "] is free (cost = " << total_cost
                               << "; safety distance = " << safety_dist << ")");
     break;
